@@ -41,3 +41,18 @@ jobs:
 
       - name: Build Azure Functions (if defined)
         run: npm run build
+
+  deploy-loan:
+    needs: backend-ci
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy Loan Service to Azure Functions
+        uses: Azure/functions-action@v1
+        with:
+          app-name: cdls-loan-service
+          package: backend/loan-service
+          publish-profile: ${{ secrets.LOAN_FUNCTIONAPP_PUBLISH_PROFILE }}
