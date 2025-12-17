@@ -1,0 +1,11 @@
+{
+  "name": "Backend Functions DevContainer",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "VARIANT": "18-bullseye"
+    }
+  },
+  "postCreateCommand": "npm install -g azure-functions-core-tools@4 --unsafe-perm true && cd device-service && npm install && cd ../loan-service && npm install",
+  "remoteUser": "node"
+}

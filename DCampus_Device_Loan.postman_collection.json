@@ -1,0 +1,136 @@
+{
+  "info": {
+    "name": "DCampus Device Loan API",
+    "_postman_id": "c8c8e3b8-1d2e-47c5-9f5a-9c1a9b0f5f21",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "device_base", "value": "http://localhost:32101" },
+    { "key": "loan_base", "value": "http://localhost:32102" },
+    { "key": "loan_id", "value": "" },
+    { "key": "target_device", "value": "macbook-pro-1" }
+  ],
+  "item": [
+    {
+      "name": "Seed Devices",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{device_base}}/api/devices/seed",
+        "body": { "mode": "raw", "raw": "" }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+              "var json = pm.response.json();",
+              "pm.test('seed message', function(){ pm.expect(json.message).to.eql('Seeded demo devices'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Devices",
+      "request": { "method": "GET", "url": "{{device_base}}/api/devices" },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+              "var arr = pm.response.json();",
+              "pm.test('has devices', function(){ pm.expect(arr.length).to.be.above(0); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create Loan (reserve)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{loan_base}}/api/loans",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"userId\":\"test-user\",\"userName\":\"Test User\",\"deviceId\":\"{{target_device}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status 201', function () { pm.response.to.have.status(201); });",
+              "var json = pm.response.json();",
+              "pm.collectionVariables.set('loan_id', json.id);",
+              "pm.test('reserved', function(){ pm.expect(json.status).to.eql('Reserved'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Loans",
+      "request": { "method": "GET", "url": "{{loan_base}}/api/loans" }
+    },
+    {
+      "name": "Collect Loan",
+      "request": {
+        "method": "POST",
+        "url": "{{loan_base}}/api/loans/{{loan_id}}/collect"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+              "var json = pm.response.json();",
+              "pm.test('collected', function(){ pm.expect(json.status).to.eql('Collected'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Return Loan",
+      "request": {
+        "method": "POST",
+        "url": "{{loan_base}}/api/loans/{{loan_id}}/return"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+              "var json = pm.response.json();",
+              "pm.test('returned', function(){ pm.expect(json.status).to.eql('Returned'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Devices After Return",
+      "request": { "method": "GET", "url": "{{device_base}}/api/devices" },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+              "var arr = pm.response.json();",
+              "var mbp = arr.find(function(d){ return d.id === 'macbook-pro-1'; });",
+              "pm.test('macbook-pro-1 available >= 1', function(){ pm.expect(mbp && mbp.availableQuantity >= 1).to.be.true; });"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

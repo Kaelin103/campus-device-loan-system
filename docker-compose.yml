@@ -1,0 +1,33 @@
+services:
+  device-service:
+    build: ./backend/device-service
+    environment:
+      - COSMOS_ENDPOINT=${COSMOS_ENDPOINT}
+      - COSMOS_KEY=${COSMOS_KEY}
+      - DATABASE_NAME=cdls-db
+      - DEVICE_CONTAINER=devices
+    ports:
+      - "32111:80"
+
+  loan-service:
+    build: ./backend/loan-service
+    environment:
+      - DEVICE_SVC_BASE=http://device-service
+      - COSMOS_ENDPOINT=${COSMOS_ENDPOINT}
+      - COSMOS_KEY=${COSMOS_KEY}
+      - DATABASE_NAME=cdls-db
+      - LOAN_CONTAINER=loans
+      - DEVICE_CONTAINER=devices
+    ports:
+      - "32112:80"
+
+  frontend:
+    build: ./frontend
+    environment:
+      - LOAN_SERVICE_URL=http://loan-service
+      - DEVICE_SERVICE_URL=http://device-service
+    ports:
+      - "5173:5173"
+    depends_on:
+      - loan-service
+      - device-service
