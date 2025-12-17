@@ -48,20 +48,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - name: Install & Build
-        run: |
-          cd backend/loan-service
-          npm ci
-          npm run build
-
       - name: Deploy Loan Service to Azure Functions
         uses: Azure/functions-action@v1
         with:
           app-name: cdls-loan-service
           package: backend/loan-service
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+          scm-do-build-during-deployment: true
