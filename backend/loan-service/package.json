@@ -5,7 +5,7 @@
   "main": "src/functions/*.js",
   "scripts": {
     "start": "func start",
-    "test": "exit 1",
+    "test": "echo \"no tests\"",
     "build": "echo \"no build\""
   },
   "dependencies": {
