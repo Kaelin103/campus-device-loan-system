@@ -43,7 +43,7 @@ jobs:
           root = ET.fromstring(xml)
 
           pp = None
-          for method in ("zipdeploy", "msdeploy", "ftp"):
+          for method in ("zipdeploy", "msdeploy"):
             for node in root.findall("publishProfile"):
               if (node.get("publishMethod") or "").lower() == method:
                 pp = node
@@ -62,6 +62,9 @@ jobs:
           if not host or not user or not pwd:
             raise SystemExit("Publish profile missing publishUrl/userName/userPWD.")
 
+          if ".scm." not in host and host.endswith(".azurewebsites.net"):
+            host = host.replace(".azurewebsites.net", ".scm.azurewebsites.net")
+
           print(f"export SCM_URL={shlex.quote('https://' + host)}")
           print(f"export SCM_USER={shlex.quote(user)}")
           print(f"export SCM_PWD={shlex.quote(pwd)}")
@@ -69,7 +72,7 @@ jobs:
 
           source "$SCM_ENV_FILE"
 
-          curl -sS --fail -u "${SCM_USER}:${SCM_PWD}" -X DELETE "${SCM_URL}/api/settings/WEBSITE_RUN_FROM_PACKAGE" >/dev/null || true
+          curl -sS --fail -u "${SCM_USER}:${SCM_PWD}" "${SCM_URL}/api/settings" >/dev/null
           curl -sS --fail -u "${SCM_USER}:${SCM_PWD}" -H "Content-Type: application/json" -X PUT \
             -d '{"WEBSITE_RUN_FROM_PACKAGE":"1"}' "${SCM_URL}/api/settings" >/dev/null
 
