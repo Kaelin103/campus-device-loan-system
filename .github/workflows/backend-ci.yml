@@ -32,23 +32,27 @@ jobs:
         run: |
           set -euo pipefail
 
-          python3 - <<'PY'
+          SCM_ENV_FILE="$RUNNER_TEMP/scm_env"
+
+          python3 - <<'PY' > "$SCM_ENV_FILE"
           import os
+          import shlex
           import xml.etree.ElementTree as ET
 
           xml = os.environ["AZURE_FUNCTIONAPP_PUBLISH_PROFILE"]
           root = ET.fromstring(xml)
 
-          def pick_profile():
-            for m in ("zipdeploy", "msdeploy", "ftp"):
-              for node in root.findall("publishProfile"):
-                if (node.get("publishMethod") or "").lower() == m:
-                  return node
-            return None
+          pp = None
+          for method in ("zipdeploy", "msdeploy", "ftp"):
+            for node in root.findall("publishProfile"):
+              if (node.get("publishMethod") or "").lower() == method:
+                pp = node
+                break
+            if pp is not None:
+              break
 
-          pp = pick_profile()
           if pp is None:
-            raise SystemExit("No publishProfile found in secret.")
+            raise SystemExit("No publishProfile found in AZURE_FUNCTIONAPP_PUBLISH_PROFILE.")
 
           publish_url = pp.get("publishUrl") or ""
           host = publish_url.split(":")[0]
@@ -56,18 +60,18 @@ jobs:
           pwd = pp.get("userPWD") or ""
 
           if not host or not user or not pwd:
-            raise SystemExit("Publish profile is missing publishUrl/userName/userPWD.")
+            raise SystemExit("Publish profile missing publishUrl/userName/userPWD.")
 
-          env_path = os.environ["GITHUB_ENV"]
-          with open(env_path, "a", encoding="utf-8") as f:
-            f.write(f"SCM_URL=https://{host}\n")
-            f.write(f"SCM_USER={user}\n")
-            f.write(f"SCM_PWD={pwd}\n")
+          print(f"export SCM_URL={shlex.quote('https://' + host)}")
+          print(f"export SCM_USER={shlex.quote(user)}")
+          print(f"export SCM_PWD={shlex.quote(pwd)}")
           PY
 
-          curl -sS --fail -u "${SCM_USER}:${SCM_PWD}" -X DELETE "${SCM_URL}/api/settings/WEBSITE_RUN_FROM_PACKAGE" >/dev/null \
-            || curl -sS --fail -u "${SCM_USER}:${SCM_PWD}" -H "Content-Type: application/json" -X PUT \
-              -d '{"WEBSITE_RUN_FROM_PACKAGE":"1"}' "${SCM_URL}/api/settings" >/dev/null
+          source "$SCM_ENV_FILE"
+
+          curl -sS --fail -u "${SCM_USER}:${SCM_PWD}" -X DELETE "${SCM_URL}/api/settings/WEBSITE_RUN_FROM_PACKAGE" >/dev/null || true
+          curl -sS --fail -u "${SCM_USER}:${SCM_PWD}" -H "Content-Type: application/json" -X PUT \
+            -d '{"WEBSITE_RUN_FROM_PACKAGE":"1"}' "${SCM_URL}/api/settings" >/dev/null
 
       - name: Deploy Loan Service via Publish Profile
         uses: Azure/functions-action@v1.5.2
