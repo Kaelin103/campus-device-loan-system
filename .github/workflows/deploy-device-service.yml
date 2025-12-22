@@ -31,31 +31,32 @@ jobs:
           cd backend/device-service
           zip -r ../../device-service.zip .
 
-      - name: Deploy via ZipDeploy (async)
+      - name: Deploy via Kudu ZipDeploy (async)
         shell: bash
         env:
-          PUBLISH_URL: ${{ secrets.AZURE_KUDU_PUBLISH_URL }}
-          USERNAME: ${{ secrets.AZURE_KUDU_USERNAME }}
-          PASSWORD: ${{ secrets.AZURE_KUDU_PASSWORD }}
+          KUDU_URL: ${{ secrets.AZURE_KUDU_PUBLISH_URL }}
+          KUDU_USERNAME: ${{ secrets.AZURE_KUDU_USERNAME }}
+          KUDU_PASSWORD: ${{ secrets.AZURE_KUDU_PASSWORD }}
         run: |
           set -e
-          CLEAN_URL=$(printf "%s" "$PUBLISH_URL" | tr -d '\r\n')
+
+          CLEAN_URL=$(printf "%s" "$KUDU_URL" | tr -d '\r\n')
           DEPLOY_URL="${CLEAN_URL%/}/api/zipdeploy?isAsync=true"
 
           echo "Deploying to $DEPLOY_URL"
+
           curl --fail -X POST \
-            -u "${USERNAME}:${PASSWORD}" \
+            -u "${KUDU_USERNAME}:${KUDU_PASSWORD}" \
             --data-binary @"device-service.zip" \
             "$DEPLOY_URL"
 
       - name: Check deployment status
         shell: bash
         env:
-          PUBLISH_URL: ${{ secrets.AZURE_KUDU_PUBLISH_URL }}
-          USERNAME: ${{ secrets.AZURE_KUDU_USERNAME }}
-          PASSWORD: ${{ secrets.AZURE_KUDU_PASSWORD }}
+          KUDU_URL: ${{ secrets.AZURE_KUDU_PUBLISH_URL }}
+          KUDU_USERNAME: ${{ secrets.AZURE_KUDU_USERNAME }}
+          KUDU_PASSWORD: ${{ secrets.AZURE_KUDU_PASSWORD }}
         run: |
           set -e
-          CLEAN_URL=$(printf "%s" "$PUBLISH_URL" | tr -d '\r\n')
-          STATUS_URL="${CLEAN_URL%/}/api/deployments/latest"
-          curl -u "${USERNAME}:${PASSWORD}" "$STATUS_URL"
+          STATUS_URL="${KUDU_URL%/}/api/deployments/latest"
+          curl -u "${KUDU_USERNAME}:${KUDU_PASSWORD}" "$STATUS_URL"
