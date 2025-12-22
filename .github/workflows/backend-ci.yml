@@ -26,6 +26,49 @@ jobs:
         working-directory: backend/loan-service
         run: npm ci --omit=dev
 
+      - name: Normalize WEBSITE_RUN_FROM_PACKAGE (publish profile only)
+        env:
+          AZURE_FUNCTIONAPP_PUBLISH_PROFILE: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          import os
+          import xml.etree.ElementTree as ET
+
+          xml = os.environ["AZURE_FUNCTIONAPP_PUBLISH_PROFILE"]
+          root = ET.fromstring(xml)
+
+          def pick_profile():
+            for m in ("zipdeploy", "msdeploy", "ftp"):
+              for node in root.findall("publishProfile"):
+                if (node.get("publishMethod") or "").lower() == m:
+                  return node
+            return None
+
+          pp = pick_profile()
+          if pp is None:
+            raise SystemExit("No publishProfile found in secret.")
+
+          publish_url = pp.get("publishUrl") or ""
+          host = publish_url.split(":")[0]
+          user = pp.get("userName") or ""
+          pwd = pp.get("userPWD") or ""
+
+          if not host or not user or not pwd:
+            raise SystemExit("Publish profile is missing publishUrl/userName/userPWD.")
+
+          env_path = os.environ["GITHUB_ENV"]
+          with open(env_path, "a", encoding="utf-8") as f:
+            f.write(f"SCM_URL=https://{host}\n")
+            f.write(f"SCM_USER={user}\n")
+            f.write(f"SCM_PWD={pwd}\n")
+          PY
+
+          curl -sS --fail -u "${SCM_USER}:${SCM_PWD}" -X DELETE "${SCM_URL}/api/settings/WEBSITE_RUN_FROM_PACKAGE" >/dev/null \
+            || curl -sS --fail -u "${SCM_USER}:${SCM_PWD}" -H "Content-Type: application/json" -X PUT \
+              -d '{"WEBSITE_RUN_FROM_PACKAGE":"1"}' "${SCM_URL}/api/settings" >/dev/null
+
       - name: Deploy Loan Service via Publish Profile
         uses: Azure/functions-action@v1.5.2
         with:
