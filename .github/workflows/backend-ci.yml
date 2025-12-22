@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "backend/**"
+      - ".github/workflows/backend-ci.yml"
   pull_request:
     paths:
       - "backend/**"
@@ -39,14 +40,26 @@ jobs:
   deploy-loan:
     needs: backend-ci
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy Loan Service to Azure Functions (Publish Profile)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+          cache-dependency-path: backend/loan-service/package-lock.json
+
+      - name: Install dependencies (loan-service)
+        working-directory: backend/loan-service
+        run: npm ci --omit=dev
+
+      - name: Deploy Loan Service via Publish Profile
         uses: Azure/functions-action@v1
         with:
-          app-name: cdls-loan-service
-          package: backend/loan-service
+          app-name: cdls-loan-service-func
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
-          scm-do-build-during-deployment: true
+          package: backend/loan-service
+          scm-do-build-during-deployment: false
+          enable-oryx-build: false
