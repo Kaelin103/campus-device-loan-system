@@ -5,8 +5,8 @@
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["get"],
-      "route": "health"
+      "methods": ["post"],
+      "route": "loans/{id}/reserve"
     },
     {
       "type": "http",

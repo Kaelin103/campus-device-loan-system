@@ -1,8 +1,8 @@
 {
-  "name": "",
+  "name": "cdls-loan-service",
   "version": "1.0.0",
-  "description": "",
-  "main": "src/functions/*.js",
+  "private": true,
+  "description": "Campus Device Loan System - Loan Service",
   "scripts": {
     "start": "func start",
     "test": "echo \"no tests\"",
@@ -10,13 +10,8 @@
   },
   "dependencies": {
     "@azure/cosmos": "^4.9.0",
-    "@azure/functions": "^4.0.0",
-    "express": "^5.2.1",
     "express-jwt": "^8.5.1",
     "jwks-rsa": "^3.2.0",
     "uuid": "^13.0.0"
-  },
-  "devDependencies": {
-    "azure-functions-core-tools": "^4.x"
   }
 }

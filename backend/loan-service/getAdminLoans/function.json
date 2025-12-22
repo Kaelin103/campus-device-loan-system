@@ -6,7 +6,7 @@
       "direction": "in",
       "name": "req",
       "methods": ["get"],
-      "route": "health"
+      "route": "staff/loans"
     },
     {
       "type": "http",
