@@ -31,33 +31,21 @@ jobs:
           cd backend/loan-service
           zip -r ../../loan-service.zip .
 
-      - name: Set WEBSITE_RUN_FROM_PACKAGE
-        env:
-          PUBLISH_URL: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_URL }}
-          USERNAME: ${{ secrets.AZURE_FUNCTIONAPP_USERNAME }}
-          PASSWORD: ${{ secrets.AZURE_FUNCTIONAPP_PASSWORD }}
-        run: |
-          set -euo pipefail
-          BASE_URL="${PUBLISH_URL%/}"
-          URL="${BASE_URL}/api/settings"
-          echo "Updating app settings via $URL"
-          curl --fail -X PUT \
-            -u "${USERNAME}:${PASSWORD}" \
-            -H "Content-Type: application/json" \
-            -d '{"WEBSITE_RUN_FROM_PACKAGE":"1"}' \
-            "$URL"
-
       - name: Deploy via ZipDeploy
+        shell: bash
         env:
           PUBLISH_URL: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_URL }}
           USERNAME: ${{ secrets.AZURE_FUNCTIONAPP_USERNAME }}
           PASSWORD: ${{ secrets.AZURE_FUNCTIONAPP_PASSWORD }}
         run: |
-          set -euo pipefail
-          BASE_URL="${PUBLISH_URL%/}"
-          URL="${BASE_URL}/api/zipdeploy"
-          echo "Deploying to $URL"
+          set -e
+
+          CLEAN_URL=$(printf "%s" "$PUBLISH_URL" | tr -d '\r\n')
+          FULL_URL="${CLEAN_URL%/}/api/zipdeploy"
+
+          echo "Deploying to $FULL_URL"
+
           curl --fail -X POST \
             -u "${USERNAME}:${PASSWORD}" \
             --data-binary @"loan-service.zip" \
-            "$URL"
+            "$FULL_URL"
