@@ -1,9 +1,8 @@
-name: CI + Deploy Device Service (Azure CLI Zip)
+name: CI + Deploy Device Service (Kudu ZipDeploy)
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
     paths:
       - "backend/device-service/**"
       - ".github/workflows/deploy-device-service.yml"
@@ -12,10 +11,6 @@ on:
 jobs:
   deploy-device:
     runs-on: ubuntu-latest
-
-    permissions:
-      id-token: write
-      contents: read
 
     steps:
       - name: Checkout
@@ -35,16 +30,19 @@ jobs:
           cd backend/device-service
           zip -r ../../device-service.zip .
 
-      - name: Login to Azure (OIDC)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Deploy device service via Azure CLI Zip
+      - name: Deploy via Kudu ZipDeploy
+        shell: bash
+        env:
+          PUBLISH_URL: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_URL }}
+          USERNAME: ${{ secrets.AZURE_FUNCTIONAPP_USERNAME }}
+          PASSWORD: ${{ secrets.AZURE_FUNCTIONAPP_PASSWORD }}
         run: |
-          az functionapp deployment source config-zip \
-            --resource-group cdls-dev-rg \
-            --name cdls-device-service-func \
-            --src device-service.zip
+          set -e
+          DEPLOY_URL="${PUBLISH_URL%/}/api/zipdeploy?isAsync=true"
+
+          echo "Deploying to $DEPLOY_URL"
+
+          curl --fail -X POST \
+            -u "${USERNAME}:${PASSWORD}" \
+            --data-binary @"device-service.zip" \
+            "$DEPLOY_URL"
