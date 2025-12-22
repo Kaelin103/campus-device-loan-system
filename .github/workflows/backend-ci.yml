@@ -26,12 +26,23 @@ jobs:
         working-directory: backend/loan-service
         run: npm ci --omit=dev
 
-      - name: Zip loan-service
+      - name: Zip loan-service (function root)
         run: |
           cd backend/loan-service
-          zip -r ../../loan-service.zip .
+          zip -r ../../loan-service.zip \
+            host.json \
+            package.json \
+            node_modules \
+            health \
+            collectLoan \
+            getLoans \
+            reserveLoan \
+            returnLoan \
+            getAdminLoans \
+            auth \
+            cosmosClient.js
 
-      - name: Deploy via ZipDeploy
+      - name: Deploy via ZipDeploy (async)
         shell: bash
         env:
           PUBLISH_URL: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_URL }}
@@ -41,11 +52,27 @@ jobs:
           set -e
 
           CLEAN_URL=$(printf "%s" "$PUBLISH_URL" | tr -d '\r\n')
-          FULL_URL="${CLEAN_URL%/}/api/zipdeploy"
+          DEPLOY_URL="${CLEAN_URL%/}/api/zipdeploy?isAsync=true"
 
-          echo "Deploying to $FULL_URL"
+          echo "Starting async deployment to $DEPLOY_URL"
 
           curl --fail -X POST \
             -u "${USERNAME}:${PASSWORD}" \
             --data-binary @"loan-service.zip" \
-            "$FULL_URL"
+            "$DEPLOY_URL"
+
+          echo "ZipDeploy accepted (async). Deployment continues in background."
+
+      - name: Check deployment status
+        shell: bash
+        env:
+          PUBLISH_URL: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_URL }}
+          USERNAME: ${{ secrets.AZURE_FUNCTIONAPP_USERNAME }}
+          PASSWORD: ${{ secrets.AZURE_FUNCTIONAPP_PASSWORD }}
+        run: |
+          set -e
+          CLEAN_URL=$(printf "%s" "$PUBLISH_URL" | tr -d '\r\n')
+          STATUS_URL="${CLEAN_URL%/}/api/deployments/latest"
+
+          echo "Checking deployment status..."
+          curl -u "${USERNAME}:${PASSWORD}" "$STATUS_URL"
