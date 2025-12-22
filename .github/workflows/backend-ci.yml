@@ -1,71 +1,20 @@
-name: Backend CI – Azure Functions
+name: CI + Deploy Loan Service (Publish Profile)
 
 on:
   push:
+    branches:
+      - main
     paths:
-      - "backend/**"
+      - "backend/loan-service/**"
       - ".github/workflows/backend-ci.yml"
-  pull_request:
-    paths:
-      - "backend/**"
   workflow_dispatch:
 
 jobs:
-  backend-ci:
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        service:
-          - backend/loan-service
-          - backend/device-service
-
-    defaults:
-      run:
-        working-directory: ${{ matrix.service }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-          cache: npm
-          cache-dependency-path: ${{ matrix.service }}/package-lock.json
-
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
-
   deploy-loan:
-    needs: backend-ci
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    permissions:
-      contents: read
-      id-token: write
-    env:
-      AZURE_FUNCTIONAPP_NAME: cdls-loan-service-func
-      AZURE_RESOURCE_GROUP: cdls-dev-rg
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Azure login (OIDC)
-        if: ${{ secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_TENANT_ID != '' && secrets.AZURE_SUBSCRIPTION_ID != '' }}
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Enable SCM basic auth
-        if: ${{ secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_TENANT_ID != '' && secrets.AZURE_SUBSCRIPTION_ID != '' }}
-        continue-on-error: true
-        run: |
-          az rest --method put \
-            --uri "https://management.azure.com/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.AZURE_RESOURCE_GROUP }}/providers/Microsoft.Web/sites/${{ env.AZURE_FUNCTIONAPP_NAME }}/basicPublishingCredentialsPolicies/scm?api-version=2022-03-01" \
-            --body '{"properties":{"allow":true}}'
 
       - uses: actions/setup-node@v4
         with:
@@ -80,18 +29,8 @@ jobs:
       - name: Deploy Loan Service via Publish Profile
         uses: Azure/functions-action@v1.5.2
         with:
-          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          app-name: cdls-loan-service-func
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
           package: backend/loan-service
           scm-do-build-during-deployment: false
           enable-oryx-build: false
-
-      - name: Deployment diagnostics
-        if: failure()
-        run: |
-          echo "Azure Functions deployment failed."
-          echo "If the error is: Failed to fetch Kudu App Settings. Unauthorized (CODE: 401), common causes are:"
-          echo "1) Function App has 'SCM Basic Auth Publishing Credentials' turned OFF."
-          echo "2) Secret AZURE_FUNCTIONAPP_PUBLISH_PROFILE doesn't match the target Function App/slot."
-          echo "3) SCM endpoint is blocked by networking/access restrictions."
-          echo "Fix: Azure Portal -> Function App -> Configuration -> General settings -> enable 'SCM Basic Auth Publishing Credentials', then re-download the publish profile and update the GitHub secret."
