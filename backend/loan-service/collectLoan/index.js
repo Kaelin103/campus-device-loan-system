@@ -1,23 +1,11 @@
-const { ensureSetup, getLoansContainer } = require("../cosmosClient");
-const auth0JwtCheck = require("../auth/auth0Jwt");
-const requireStaff = require("../auth/requireStaff");
-const runMiddleware = require("../auth/azureAdapter");
+const { ObjectId } = require("mongodb");
+const { connect } = require("../cosmosClient");
 
 module.exports = async function (context, req) {
   try {
-    const jwt = await runMiddleware(req, auth0JwtCheck);
-    if (jwt.isResponse) {
-      context.res = jwt.response;
-      return;
-    }
-
-    const staff = await runMiddleware(jwt.req, requireStaff);
-    if (staff.isResponse) {
-      context.res = staff.response;
-      return;
-    }
-
-    const loanId = context.bindingData.id;
+    const body =
+      typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
+    const loanId = context.bindingData.id || body.loanId;
     if (!loanId) {
       context.res = {
         status: 400,
@@ -26,38 +14,28 @@ module.exports = async function (context, req) {
       return;
     }
 
-    await ensureSetup();
-    const container = getLoansContainer();
-
-    let loan;
-    try {
-      const { resource } = await container.item(loanId, loanId).read();
-      loan = resource;
-    } catch (err) {
-      if (err?.code !== 404 && err?.code !== 400) throw err;
-    }
-
-    if (!loan) {
-      const { resources } = await container.items
-        .query({
-          query: "SELECT * FROM c WHERE c.id = @id",
-          parameters: [{ name: "@id", value: loanId }],
-        })
-        .fetchAll();
-      loan = resources && resources[0];
-    }
-    if (!loan) {
-      context.res = {
-        status: 404,
-        body: { message: "Loan not found" },
-      };
+    const db = await connect();
+    const loanObjectId = ObjectId.isValid(loanId) ? new ObjectId(loanId) : null;
+    if (!loanObjectId) {
+      context.res = { status: 400, body: { message: "Invalid loan id" } };
       return;
     }
 
-    loan.status = "collected";
-    loan.collectedAt = new Date().toISOString();
+    const updated = await db.collection("loans").findOneAndUpdate(
+      { _id: loanObjectId, status: "Reserved" },
+      { $set: { status: "Collected", collectedAt: new Date() } },
+      { returnDocument: "after" }
+    );
 
-    const { resource: saved } = await container.items.upsert(loan);
+    if (!updated.value) {
+      const exists = await db.collection("loans").findOne({ _id: loanObjectId });
+      context.res = exists
+        ? { status: 409, body: { message: `Cannot collect loan in status '${exists.status}'` } }
+        : { status: 404, body: { message: "Loan not found" } };
+      return;
+    }
+
+    const saved = { ...updated.value, id: updated.value._id.toString() };
 
     context.res = {
       status: 200,

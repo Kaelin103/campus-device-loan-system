@@ -1,87 +1,66 @@
-const { ensureSetup, getLoansContainer } = require("../cosmosClient");
-const auth0JwtCheck = require("../auth/auth0Jwt");
-const runMiddleware = require("../auth/azureAdapter");
+const { ObjectId } = require("mongodb");
+const { connect } = require("../cosmosClient");
 
 module.exports = async function (context, req) {
   try {
-    const loanId = context.bindingData.id;
+    const body =
+      typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
+    const studentId = body.studentId || body.userId;
+    const userName = body.userName;
+    const deviceId = body.deviceId;
 
-    if (!loanId) {
+    if (!studentId || !deviceId) {
       context.res = {
         status: 400,
-        body: { message: "Loan id is required" },
+        body: "studentId/userId and deviceId required",
       };
       return;
     }
 
-    const jwt = await runMiddleware(req, auth0JwtCheck);
-    if (jwt.isResponse) {
-      context.res = jwt.response;
+    const db = await connect();
+
+    const deviceObjectId = ObjectId.isValid(deviceId)
+      ? new ObjectId(deviceId)
+      : null;
+    if (!deviceObjectId) {
+      context.res = { status: 400, body: "Invalid deviceId" };
       return;
     }
 
-    const user = jwt.req.auth;
-    const userSub = user?.sub;
-    if (!userSub) {
-      context.res = {
-        status: 401,
-        body: { message: "Unauthorized" },
-      };
+    const deviceUpdate = await db.collection("devices").findOneAndUpdate(
+      { _id: deviceObjectId, availableQuantity: { $gt: 0 } },
+      { $inc: { availableQuantity: -1 } },
+      { returnDocument: "before" }
+    );
+
+    const device = deviceUpdate.value;
+    if (!device) {
+      context.res = { status: 400, body: "Device unavailable" };
       return;
     }
 
-    await ensureSetup();
-    const container = getLoansContainer();
+    const loan = {
+      studentId,
+      userId: body.userId,
+      userName,
+      deviceId: deviceObjectId.toString(),
+      deviceName: device.name,
+      status: "Reserved",
+      createdAt: new Date(),
+    };
 
-    let loan;
-    try {
-      const { resource } = await container.item(loanId, loanId).read();
-      loan = resource;
-    } catch (err) {
-      if (err?.code !== 404 && err?.code !== 400) throw err;
-    }
-
-    if (!loan) {
-      const { resources } = await container.items
-        .query({
-          query: "SELECT * FROM c WHERE c.id = @id",
-          parameters: [{ name: "@id", value: loanId }],
-        })
-        .fetchAll();
-      loan = resources && resources[0];
-    }
-
-    if (!loan) {
-      context.res = {
-        status: 404,
-        body: { message: "Loan not found" },
-      };
-      return;
-    }
-
-    if (loan.status !== "available") {
-      context.res = {
-        status: 400,
-        body: { message: `Loan cannot be reserved from status '${loan.status}'` },
-      };
-      return;
-    }
-
-    loan.status = "reserved";
-    loan.reservedBy = userSub;
-    loan.reservedAt = new Date().toISOString();
-
-    const { resource: saved } = await container.items.upsert(loan);
+    const inserted = await db.collection("loans").insertOne(loan);
+    const saved = { ...loan, _id: inserted.insertedId, id: inserted.insertedId.toString() };
 
     context.res = {
-      status: 200,
+      status: 201,
       body: saved,
     };
   } catch (err) {
     context.log.error("reserveLoan failed", err);
     context.res = {
       status: 500,
-      body: { message: "Internal Server Error" },
+      body: "Reserve failed",
     };
   }
 };

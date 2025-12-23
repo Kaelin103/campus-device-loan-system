@@ -1,74 +1,53 @@
-const { ensureSetup, getLoansContainer } = require("../cosmosClient");
-const auth0JwtCheck = require("../auth/auth0Jwt");
-const runMiddleware = require("../auth/azureAdapter");
+const { ObjectId } = require("mongodb");
+const { connect } = require("../cosmosClient");
 
 module.exports = async function (context, req) {
-  const jwt = await runMiddleware(req, auth0JwtCheck);
-  if (jwt.isResponse) {
-    context.res = jwt.response;
-    return;
-  }
-
-  const loanId = context.bindingData.id;
-  if (!loanId) {
-    context.res = {
-      status: 400,
-      body: { message: "Loan id is required" },
-    };
-    return;
-  }
-
   try {
-    await ensureSetup();
-  } catch (err) {
-    context.log.error("Cosmos configuration missing", err);
-    context.res = {
-      status: 500,
-      body: { message: "Database configuration error" },
-    };
-    return;
-  }
-
-  try {
-    const container = getLoansContainer();
-
-    let loan;
-    try {
-      const { resource } = await container.item(loanId, loanId).read();
-      loan = resource;
-    } catch (err) {
-      if (err?.code !== 404 && err?.code !== 400) throw err;
-    }
-
-    if (!loan) {
-      const query = {
-        query: "SELECT * FROM c WHERE c.id = @id",
-        parameters: [{ name: "@id", value: loanId }],
-      };
-      const { resources } = await container.items.query(query).fetchAll();
-      loan = resources && resources[0];
-    }
-
-    if (!loan) {
+    const body =
+      typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
+    const loanId = context.bindingData.id || body.loanId;
+    if (!loanId) {
       context.res = {
-        status: 404,
-        body: { message: "Loan not found" },
+        status: 400,
+        body: { message: "Loan id is required" },
       };
       return;
     }
 
-    if (loan.status !== "collected") {
+    const db = await connect();
+    const loanObjectId = ObjectId.isValid(loanId) ? new ObjectId(loanId) : null;
+    if (!loanObjectId) {
+      context.res = { status: 400, body: { message: "Invalid loan id" } };
+      return;
+    }
+
+    const existing = await db.collection("loans").findOne({ _id: loanObjectId });
+    if (!existing) {
+      context.res = { status: 404, body: { message: "Loan not found" } };
+      return;
+    }
+    if (existing.status !== "Collected") {
       context.res = {
         status: 409,
-        body: { message: `Cannot return loan in status '${loan.status}'` },
+        body: { message: `Cannot return loan in status '${existing.status}'` },
       };
       return;
     }
 
-    loan.status = "returned";
-    loan.returnedAt = new Date().toISOString();
+    const updated = await db.collection("loans").findOneAndUpdate(
+      { _id: loanObjectId },
+      { $set: { status: "Returned", returnedAt: new Date() } },
+      { returnDocument: "after" }
+    );
 
-    const { resource: saved } = await container.items.upsert(loan);
+    const deviceIdRaw = body.deviceId || existing.deviceId;
+    if (deviceIdRaw && ObjectId.isValid(deviceIdRaw)) {
+      await db
+        .collection("devices")
+        .updateOne({ _id: new ObjectId(deviceIdRaw) }, { $inc: { availableQuantity: 1 } });
+    }
+
+    const saved = { ...updated.value, id: updated.value._id.toString() };
 
     context.res = {
       status: 200,

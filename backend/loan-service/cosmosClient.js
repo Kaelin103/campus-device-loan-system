@@ -1,45 +1,25 @@
-const { webcrypto } = require("crypto");
-globalThis.crypto = globalThis.crypto || webcrypto;
-const { CosmosClient } = require("@azure/cosmos");
+const { MongoClient } = require("mongodb");
+
+const uri = process.env.MONGODB_URI;
+const dbName = process.env.MONGODB_DB || "cdls";
+
 let client;
-let initialized = false;
+let db;
 
-function getClient() {
-  if (client) return client;
+async function connect() {
+  if (db) return db;
 
-  const endpoint = process.env.COSMOS_ENDPOINT;
-  const key = process.env.COSMOS_KEY;
-  if (!endpoint || !key) throw new Error("Cosmos configuration missing");
+  if (!uri) {
+    throw new Error("MONGODB_URI is not defined");
+  }
 
-  client = new CosmosClient({ endpoint, key });
-  return client;
+  client = new MongoClient(uri);
+  await client.connect();
+
+  db = client.db(dbName);
+  console.log("✅ MongoDB connected:", dbName);
+
+  return db;
 }
 
-async function ensureSetup() {
-  if (initialized) return;
-
-  const dbName = process.env.DATABASE_NAME || "cdls";
-  const loansContainerName = process.env.LOAN_CONTAINER || "loans";
-  const devicesContainerName = process.env.DEVICE_CONTAINER || "devices";
-
-  const client = getClient();
-  await client.databases.createIfNotExists({ id: dbName });
-  await client.database(dbName).containers.createIfNotExists({ id: loansContainerName, partitionKey: { paths: ["/id"], version: 2 } });
-  await client.database(dbName).containers.createIfNotExists({ id: devicesContainerName, partitionKey: { paths: ["/id"], version: 2 } });
-  initialized = true;
-}
-function getLoansContainer() {
-  const client = getClient();
-  const dbName = process.env.DATABASE_NAME || "cdls";
-  const loansContainerName = process.env.LOAN_CONTAINER || "loans";
-  return client.database(dbName).container(loansContainerName);
-}
-function getDevicesContainer() {
-  const client = getClient();
-  const dbName = process.env.DATABASE_NAME || "cdls";
-  const devicesContainerName = process.env.DEVICE_CONTAINER || "devices";
-  return client.database(dbName).container(devicesContainerName);
-}
-
-module.exports = { getClient, ensureSetup, getLoansContainer, getDevicesContainer };
-Object.defineProperty(module.exports, "client", { get: () => client });
+module.exports = { connect };
