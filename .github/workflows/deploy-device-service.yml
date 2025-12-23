@@ -42,7 +42,7 @@ jobs:
 
           echo "Deploying to $DEPLOY_URL"
 
-          curl --fail -X POST \
+          curl -i --fail -X POST \
             -u "${USERNAME}:${PASSWORD}" \
             --data-binary @"device-service.zip" \
             "$DEPLOY_URL"

@@ -1,13 +1,15 @@
 import { useEffect, useState, useCallback } from "react";
 import { useApi } from "./useApi";
 
-export function useStaffLoans() {
+export function useStaffLoans(options = {}) {
+  const enabled = options.enabled ?? true;
   const { apiFetch } = useApi();
   const [loans, setLoans] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
+    if (!enabled) return;
     setLoading(true);
     setError(null);
     try {
@@ -20,9 +22,12 @@ export function useStaffLoans() {
     } finally {
       setLoading(false);
     }
-  }, [apiFetch]);
+  }, [apiFetch, enabled]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (!enabled) return;
+    load();
+  }, [enabled, load]);
 
   return { loans, loading, error, refresh: load };
 }

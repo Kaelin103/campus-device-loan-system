@@ -1,4 +1,3 @@
-import React, { useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useStaffLoans } from "../hooks/useStaffLoans";
 
@@ -10,9 +9,9 @@ function StaffContent() {
   const roles = user?.["https://cdls-api/roles"] || [];
   const isStaff = roles.includes("staff");
 
-  if (!isStaff) return <div>Access Denied</div>;
+  const { loans, loading, error, refresh } = useStaffLoans({ enabled: isStaff });
 
-  const { loans, loading, error, refresh } = useStaffLoans();
+  if (!isStaff) return <div>Access Denied</div>;
 
   if (loading) return <div>Loading staff loans...</div>;
   if (error) return <div>Failed: {String(error)}</div>;
