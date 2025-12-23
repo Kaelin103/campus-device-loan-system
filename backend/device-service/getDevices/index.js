@@ -1,13 +1,18 @@
-const { ensureSetup, getDevicesContainer } = require("../cosmosClient");
+const { ensureSetup, getDevicesContainer } = require("../mongoClient");
 
 module.exports = async function (context, req) {
-  await ensureSetup();
   try {
-    const query = "SELECT * FROM c ORDER BY c.name";
-    const container = getDevicesContainer();
-    const { resources: items } = await container.items.query(query).fetchAll();
+    await ensureSetup();
+    const collection = getDevicesContainer();
+
+    const items = await collection
+      .find({})
+      .sort({ name: 1 })
+      .toArray();
+
     context.res = { status: 200, body: items };
-  } catch {
-    context.res = { status: 200, body: [] };
+  } catch (err) {
+    context.log("[getDevices] Error:", err);
+    context.res = { status: 500, body: { error: err.message } };
   }
 };

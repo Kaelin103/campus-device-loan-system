@@ -33,9 +33,9 @@ jobs:
       - name: Deploy via Kudu ZipDeploy
         shell: bash
         env:
-          PUBLISH_URL: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_URL }}
-          USERNAME: ${{ secrets.AZURE_FUNCTIONAPP_USERNAME }}
-          PASSWORD: ${{ secrets.AZURE_FUNCTIONAPP_PASSWORD }}
+          PUBLISH_URL: ${{ secrets.AZURE_DEVICE_FUNCTIONAPP_PUBLISH_URL }}
+          USERNAME: ${{ secrets.AZURE_DEVICE_FUNCTIONAPP_USERNAME }}
+          PASSWORD: ${{ secrets.AZURE_DEVICE_FUNCTIONAPP_PASSWORD }}
         run: |
           set -e
           DEPLOY_URL="${PUBLISH_URL%/}/api/zipdeploy?isAsync=true"
