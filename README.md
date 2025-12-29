@@ -26,4 +26,4 @@ Successful pipelines deploy backend services to Azure Functions.
 
 - Backend CI implemented and verified  
 - Intentional CI failure tested and validated  
-- All current pipelines passing successfully  
+- CI pipelines have been implemented and verified through both successful and intentionally failed executions.
